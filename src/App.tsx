@@ -21,9 +21,12 @@ export default function App() {
   const [coin, setCoin] = useState<string | null>(null);
   const reduced = usePrefersReducedMotion();
 
-  // Open on the strongest signal; keep the visitor's pick while it stays on the board.
+  // Open on the consensus most of the room take part in; keep the visitor's pick while it stays on the board.
   useEffect(() => {
-    if (rows.length && (!coin || !rows.some((r) => r.coin === coin && r.state !== "thin"))) setCoin(rows[0].coin);
+    if (!rows.length || (coin && rows.some((r) => r.coin === coin && r.state !== "thin"))) return;
+    const voting = rows.filter((r) => r.state === "consensus");
+    const best = (voting.length ? voting : rows).reduce((a, b) => (b.holders > a.holders || (b.holders === a.holders && b.share > a.share) ? b : a));
+    setCoin(best.coin);
   }, [rows, coin]);
 
   const pick = (c: string) => {

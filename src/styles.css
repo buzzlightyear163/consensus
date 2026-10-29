@@ -854,8 +854,11 @@ main > section.hero {
   color: var(--muted);
 }
 
+.board-all {
+  margin-top: 20px;
+}
 .more {
-  margin-top: 18px;
+  margin-top: 16px;
 }
 .more-btn {
   background: none;

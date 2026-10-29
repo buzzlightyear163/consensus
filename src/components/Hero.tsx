@@ -57,7 +57,12 @@ export function Hero({
   const now = useNow();
   const reduced = usePrefersReducedMotion();
   const row = rows.find((r) => r.coin === coin) ?? null;
-  const choices = rows.filter((r) => r.state !== "thin").slice(0, 5);
+  // The switcher offers the coins most of the room hold, plus whatever is selected.
+  const choices = rows
+    .filter((r) => r.state !== "thin")
+    .sort((a, b) => b.holders - a.holders)
+    .slice(0, 5);
+  if (row && !choices.includes(row)) choices[choices.length - 1] = row;
   const loading = !book.updatedAt;
   const size = traders?.length ?? 50;
 

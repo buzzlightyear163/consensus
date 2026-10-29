@@ -50,12 +50,15 @@ export function Board({
   const now = useNow();
   const [open, setOpen] = useState<string | null>(null);
   const [more, setMore] = useState(false);
+  const [allVoting, setAllVoting] = useState(false);
   const r = CONFIG.rules;
 
-  // The board shows coins enough of the room hold to vote on. Everything else folds away.
-  let main = rows.filter((x) => x.state !== "thin");
-  if (main.length < 3) main = rows.slice(0, 3);
-  const rest = rows.filter((x) => !main.includes(x));
+  // The board shows coins enough of the room hold to vote on, strongest six first. Everything else folds away.
+  let voting = rows.filter((x) => x.state !== "thin");
+  if (voting.length < 3) voting = rows.slice(0, 3);
+  const main = allVoting ? voting : voting.slice(0, 6);
+  const hiddenVoting = voting.length - main.length;
+  const rest = rows.filter((x) => !voting.includes(x));
 
   return (
     <section className="section" id="board" aria-labelledby="board-h">
@@ -191,6 +194,12 @@ export function Board({
           );
         })}
       </div>
+
+      {(hiddenVoting > 0 || (allVoting && voting.length > 6)) && (
+        <button type="button" className="btn btn-quiet btn-sm board-all" aria-expanded={allVoting} onClick={() => setAllVoting((v) => !v)}>
+          {allVoting ? "Show the top 6" : `Show ${hiddenVoting} more coin${hiddenVoting === 1 ? "" : "s"} the room votes on`}
+        </button>
+      )}
 
       {rest.length > 0 && (
         <div className="more">
