@@ -21,8 +21,9 @@ export default function App() {
   const [coin, setCoin] = useState<string | null>(null);
   const reduced = usePrefersReducedMotion();
 
+  // Open on the strongest signal; keep the visitor's pick while it stays on the board.
   useEffect(() => {
-    if (rows.length && (!coin || !rows.some((r) => r.coin === coin))) setCoin(rows[0].coin);
+    if (rows.length && (!coin || !rows.some((r) => r.coin === coin && r.state !== "thin"))) setCoin(rows[0].coin);
   }, [rows, coin]);
 
   const pick = (c: string) => {
@@ -46,9 +47,9 @@ export default function App() {
           roomError={room.error}
           onRetry={room.retry}
         />
-        <Board rows={rows} book={book} onPick={pick} />
+        <Board rows={rows} book={book} size={traders?.length ?? 50} onPick={pick} />
         <Room room={room.data} book={book} error={room.error} />
-        <Method rules={room.data?.rules ?? null} screened={room.data?.screened ?? null} />
+        <Method room={room.data} />
         <Fees rows={rows} />
         <WalletCheck rows={rows} traders={traders ?? []} />
       </main>

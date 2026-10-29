@@ -1,9 +1,10 @@
 // Picks "the room": the 50 Hyperliquid traders with the most consistent records.
 // Stage 1 screens every leaderboard account (free, no rate limit).
-// Stage 2 pulls PnL history for the strongest candidates to measure weekly
-// consistency and 30-day drawdown, then makes the final cut.
+// Stage 2 drops candidates without real money on Hyperliquid perps.
+// Stage 3 pulls perp PnL history for the strongest candidates to measure
+// six-month win rate and 30-day drawdown, then makes the final cut.
 
-import { fetchLeaderboard, fetchPortfolio, pool, type RawLeaderboardRow, type RawPortfolio } from "./hyperliquid.js";
+import { fetchLeaderboard, fetchPortfolio, info, pool, type RawLeaderboardRow, type RawPortfolio } from "./hyperliquid.js";
 import type { RoomRules, RoomSnapshot, RoomTrader, ScoreParts } from "./types.js";
 
 export const RULES: RoomRules = {
@@ -17,9 +18,13 @@ export const RULES: RoomRules = {
   weights: { consistency: 0.35, risk: 0.25, returns: 0.2, record: 0.2 },
 };
 
-/** How many stage-1 leaders get a full history check (portfolio calls cost 20 weight each). */
-const DEEP_SCORE = 56;
-const WEEK = 7 * 24 * 60 * 60 * 1000;
+// Hyperliquid allows 1200 request weight per minute per IP.
+// A perp balance check costs 2, a full PnL history costs 20: 70 × 2 + 52 × 20 = 1180.
+/** How many stage-1 leaders get their perp balance checked. */
+const PRECHECK = 70;
+/** How many of those get a full PnL history check. */
+const DEEP_SCORE = 52;
+const HISTORY_WINDOW = 183 * 24 * 60 * 60 * 1000;
 
 /** Protocol vaults that appear like traders but aren't. */
 const EXCLUDED = new Set<string>([
@@ -107,21 +112,36 @@ function pickPeriod(p: RawPortfolio, names: string[]) {
   return null;
 }
 
-/** Profitable weeks over (up to) the last 26 weeks of all-time PnL history. */
-export function weeklyWinRate(pnlHistory: Array<[number, string]>) {
-  const lastByWeek = new Map<number, number>();
-  for (const [ts, v] of pnlHistory) lastByWeek.set(Math.floor(ts / WEEK), num(v));
-  const weeks = [...lastByWeek.keys()].sort((a, b) => a - b).slice(-27);
+/**
+ * Share of profitable periods over the last six months. Hyperliquid reports
+ * all-time PnL roughly weekly for newer accounts and every two weeks for older
+ * ones, so each step between two points is one period. Flat periods don't count.
+ */
+export function periodWinRate(pnlHistory: Array<[number, string]>, accountValue: number, now = Date.now()) {
+  const pts = pnlHistory.map(([t, v]) => [t, num(v)] as const).sort((a, b) => a[0] - b[0]);
+  let first = pts.findIndex((p) => p[0] >= now - HISTORY_WINDOW);
+  if (first < 0) return { rate: null, counted: 0 };
+  if (first > 0) first -= 1; // the last point before the window is the baseline
+  const flat = Math.max(accountValue * 0.0005, 50);
   let wins = 0;
   let counted = 0;
-  for (let i = 1; i < weeks.length; i++) {
-    if (weeks[i] - weeks[i - 1] !== 1) continue;
-    const d = lastByWeek.get(weeks[i])! - lastByWeek.get(weeks[i - 1])!;
+  for (let k = first + 1; k < pts.length; k++) {
+    const d = pts[k][1] - pts[k - 1][1];
+    if (Math.abs(d) < flat) continue;
     counted++;
     if (d > 0) wins++;
   }
   return { rate: counted ? wins / counted : null, counted };
 }
+
+/** True when the 30-day perp PnL barely moved, i.e. the account isn't trading perps. */
+function idle(pnlHistory: Array<[number, string]>, accountValue: number) {
+  if (!pnlHistory.length) return true;
+  const vals = pnlHistory.map(([, v]) => num(v));
+  return Math.max(...vals) - Math.min(...vals) < Math.max(accountValue * 0.01, 1000);
+}
+
+const lastValue = (h: Array<[number, string]> | undefined) => (h && h.length ? num(h[h.length - 1][1]) : 0);
 
 /** Largest peak-to-trough drop in cumulative PnL, relative to account value at the peak. */
 export function drawdown(pnlHistory: Array<[number, string]>, avHistory: Array<[number, string]>, fallbackAV: number) {
@@ -150,8 +170,30 @@ export function drawdown(pnlHistory: Array<[number, string]>, avHistory: Array<[
 export async function buildRoom(): Promise<RoomSnapshot> {
   const rows = await fetchLeaderboard();
   const { candidates, filtered, screened } = screen(rows);
-  const deep = candidates.slice(0, DEEP_SCORE);
+  let noPerps = 0;
 
+  // Stage 2: the leaderboard counts spot and vault results too. Seats go to
+  // accounts that actually hold money on Hyperliquid perps, since only they can vote.
+  const pre = candidates.slice(0, PRECHECK);
+  const perpBalances = await pool(pre, 5, async (c) => {
+    try {
+      const ch = await info<{ marginSummary?: { accountValue?: string } }>({ type: "clearinghouseState", user: c.address });
+      return num(ch.marginSummary?.accountValue);
+    } catch {
+      return null; // unknown: keep the candidate
+    }
+  });
+  const withPerps = pre.filter((_, i) => {
+    const bal = perpBalances[i];
+    if (bal !== null && bal < RULES.minAccountValue / 2) {
+      noPerps++;
+      return false;
+    }
+    return true;
+  });
+
+  // Stage 3: full PnL history for the strongest remaining candidates.
+  const deep = withPerps.slice(0, DEEP_SCORE);
   const portfolios = await pool(deep, 4, async (c) => {
     try {
       return await fetchPortfolio(c.address);
@@ -160,27 +202,34 @@ export async function buildRoom(): Promise<RoomSnapshot> {
     }
   });
 
-  const scored = deep.map((c, i) => {
+  const scored: RoomTrader[] = [];
+  deep.forEach((c, i) => {
     const p = portfolios[i];
-    let weekWinRate: number | null = null;
-    let weeksCounted = 0;
+    let winRate: number | null = null;
+    let periodsCounted = 0;
     let dd: number | null = null;
     if (p) {
       const all = pickPeriod(p, ["perpAllTime", "allTime"]);
       const month = pickPeriod(p, ["perpMonth", "month"]);
-      if (all) {
-        const w = weeklyWinRate(all.pnlHistory);
-        weekWinRate = w.rate;
-        weeksCounted = w.counted;
+      const perpValue = lastValue(month?.accountValueHistory) || lastValue(all?.accountValueHistory);
+      if (!month || perpValue < RULES.minAccountValue / 2 || idle(month.pnlHistory, perpValue)) {
+        noPerps++;
+        return;
       }
-      if (month) dd = drawdown(month.pnlHistory, month.accountValueHistory, c.accountValue);
+      if (all) {
+        const w = periodWinRate(all.pnlHistory, perpValue);
+        winRate = w.rate;
+        periodsCounted = w.counted;
+      }
+      dd = drawdown(month.pnlHistory, month.accountValueHistory, perpValue);
     }
-    // Weekly history replaces the window check as it gets long enough to trust.
-    const trust = weekWinRate === null ? 0 : Math.min(1, weeksCounted / 12);
-    const consistency = trust * (weekWinRate ?? 0) + (1 - trust) * c.windowConsistency;
+    // Real history replaces the coarse window check as it gets long enough to trust.
+    // Without it, consistency can score at most 0.6.
+    const trust = winRate === null ? 0 : Math.min(1, periodsCounted / 10);
+    const consistency = trust * (winRate ?? 0) + (1 - trust) * 0.6 * c.windowConsistency;
     const risk = dd === null ? 0.5 : 1 - clamp01(dd / RULES.drawdownCeiling);
     const parts: ScoreParts = { consistency, risk, returns: c.returns, record: c.record };
-    const trader: RoomTrader = {
+    scored.push({
       rank: 0,
       address: c.address,
       name: c.name,
@@ -190,12 +239,11 @@ export async function buildRoom(): Promise<RoomSnapshot> {
       pnl30: c.perf.month.pnl,
       pnlAllTime: c.perf.allTime.pnl,
       volume30: c.perf.month.vlm,
-      weekWinRate,
-      weeksCounted,
+      winRate,
+      periodsCounted,
       drawdown30: dd,
       parts,
-    };
-    return trader;
+    });
   });
 
   scored.sort((a, b) => b.score - a.score || b.pnlAllTime - a.pnlAllTime);
@@ -205,7 +253,7 @@ export async function buildRoom(): Promise<RoomSnapshot> {
     computedAt: Date.now(),
     screened,
     eligible: candidates.length,
-    filtered,
+    filtered: { ...filtered, noPerps },
     deepScored: deep.length,
     traders,
     rules: RULES,

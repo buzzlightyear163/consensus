@@ -22,6 +22,8 @@ export type CoinRow = {
   longBySize: number;
   avgLeverage: number;
   state: State;
+  /** Lower bound of the 95% Wilson interval for the majority share: agreement adjusted for sample size. */
+  strength: number;
   longs: Holder[];
   shorts: Holder[];
 };
@@ -35,6 +37,16 @@ export function stateFor(holders: number, share: number): State {
 }
 
 const ORDER: Record<State, number> = { consensus: 0, leaning: 1, split: 2, thin: 3 };
+
+/** Wilson score lower bound: 9 of 10 agreeing is weaker evidence than 18 of 20. */
+export function wilson(k: number, n: number, z = 1.96) {
+  if (n === 0) return 0;
+  const p = k / n;
+  const d = 1 + (z * z) / n;
+  const c = p + (z * z) / (2 * n);
+  const m = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return (c - m) / d;
+}
 
 export function buildBoard(
   traders: RoomTrader[],
@@ -71,12 +83,13 @@ export function buildBoard(
       longBySize: longNtl + shortNtl > 0 ? longNtl / (longNtl + shortNtl) : 0.5,
       avgLeverage: holders.reduce((s, h) => s + h.position.leverage, 0) / holders.length,
       state: side ? stateFor(holders.length, share) : holders.length < CONFIG.rules.quorum ? "thin" : "split",
+      strength: wilson(Math.max(longs.length, shorts.length), holders.length),
       longs,
       shorts,
     });
   }
 
-  return rows.sort((a, b) => ORDER[a.state] - ORDER[b.state] || b.share - a.share || b.holders - a.holders);
+  return rows.sort((a, b) => ORDER[a.state] - ORDER[b.state] || b.strength - a.strength || b.holders - a.holders);
 }
 
 export const STATE_LABEL: Record<State, (side: Side | null) => string> = {
@@ -87,11 +100,11 @@ export const STATE_LABEL: Record<State, (side: Side | null) => string> = {
 };
 
 /** A line ready to paste on X. */
-export function postLine(row: CoinRow) {
+export function postLine(row: CoinRow, roomSize = 50) {
   const pct = Math.round(row.share * 100);
   if (!row.side || row.state === "split") {
     const l = Math.round((row.long / row.holders) * 100);
-    return `Hyperliquid's 50 most consistent traders are split on $${row.coin}: ${l}% long, ${100 - l}% short.`;
+    return `Hyperliquid's ${roomSize} most consistent traders are split on $${row.coin}: ${l}% long, ${100 - l}% short.`;
   }
-  return `${pct}% of Hyperliquid's 50 most consistent traders holding $${row.coin} are ${row.side} right now (${row.side === "long" ? row.long : row.short} of ${row.holders}).`;
+  return `${pct}% of Hyperliquid's ${roomSize} most consistent traders holding $${row.coin} are ${row.side} right now (${row.side === "long" ? row.long : row.short} of ${row.holders}).`;
 }

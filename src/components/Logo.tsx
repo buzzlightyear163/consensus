@@ -1,5 +1,5 @@
 // The mark: a small chamber where most seats have already turned the same way.
-export function Mark({ size = 28 }: { size?: number }) {
+export function Mark({ size = 30 }: { size?: number }) {
   const outer = 7;
   const inner = 4;
   const dots: Array<{ x: number; y: number; on: boolean }> = [];
