@@ -39,3 +39,7 @@ Positionerna hämtas direkt från besökarens webbläsare, så de använder bes�
 ## Justera rankningen
 
 `api/_lib/engine.ts` → `RULES`: minsta konto, min volym, market maker-filter (600x omsättning), returtak (30 %), drawdown-tak (35 %) och vikterna (35/25/20/20).
+
+## Bilder
+
+`brand/` innehåller coin-bilden (1000×1000, även X-profilbild), X-bannern (1500×500) och launch-bilden (1600×900). De renderas från samma 3D-kammare som sajten: kör `npm run dev` och sedan `python3 brand/render.py 5173` för att göra om dem.
