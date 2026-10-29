@@ -21,7 +21,7 @@ export function Nav({ updatedAt, failing }: { updatedAt: number | null; failing:
         <div className="nav-right">
           <span className={`live${updatedAt && !stale && !failing ? " is-live" : ""}`} title={updatedAt ? `Positions read ${ago(now - updatedAt)}` : undefined}>
             <span className="live-dot" aria-hidden="true" />
-            {updatedAt ? (stale || failing ? "Reconnecting" : "Live on Hyperliquid") : "Connecting"}
+            <span className="live-text">{updatedAt ? (stale || failing ? "Reconnecting" : "Live on Hyperliquid") : "Connecting"}</span>
           </span>
           {CONFIG.ca && (
             <a className="btn btn-primary btn-sm" href={`https://pump.fun/coin/${CONFIG.ca}`} target="_blank" rel="noreferrer">

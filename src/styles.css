@@ -1544,8 +1544,18 @@ td.side-short {
     gap: 12px;
   }
   .live {
-    font-size: 12px;
-    padding: 0 10px;
+    padding: 0 11px;
+  }
+  .live-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .nav-right {
+    gap: 10px;
   }
   main > section.hero {
     padding-top: 40px;
