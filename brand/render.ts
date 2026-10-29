@@ -15,6 +15,8 @@ type Shot = {
   seats: SeatKind[];
   halo: number;
   seatScale?: number;
+  /** A flat LED board instead of the chamber. */
+  panel?: () => string;
   overlay: (front: { x: number; y: number }, w: number, h: number) => string;
 };
 
@@ -40,8 +42,61 @@ const G: Record<string, string[]> = {
   U: ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
   Y: ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
   $: ["..#..", ".####", "#.#..", ".###.", "..#.#", "####.", "..#.."],
+  B: ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
+  F: ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
+  G: [".####", "#....", "#....", "#..##", "#...#", "#...#", ".###."],
+  I: [".###.", "..#..", "..#..", "..#..", "..#..", "..#..", ".###."],
+  L: ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+  W: ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "#.#.#", ".#.#."],
+  ".": [".....", ".....", ".....", ".....", ".....", ".....", "..#.."],
   " ": [".....", ".....", ".....", ".....", ".....", ".....", "....."],
 };
+
+type PanelLine = { text: string; scale: number; row: number; col: number; color: string; opacity: number; glow?: boolean };
+
+/** A full LED board: every cell is a dot, and the text is the lit ones. */
+function ledPanel(w: number, h: number, cell: number, lines: PanelLine[]) {
+  const cols = Math.floor(w / cell);
+  const rows = Math.floor(h / cell);
+  const ox = (w - cols * cell) / 2;
+  const oy = (h - rows * cell) / 2;
+  const lit = new Map<string, number>();
+  lines.forEach((ln, li) =>
+    [...ln.text.toUpperCase()].forEach((ch, gi) =>
+      (G[ch] ?? G[" "]).forEach((row, y) =>
+        [...row].forEach((bit, x) => {
+          if (bit !== "#") return;
+          for (let sy = 0; sy < ln.scale; sy++)
+            for (let sx = 0; sx < ln.scale; sx++) lit.set(`${ln.col + (gi * 6 + x) * ln.scale + sx},${ln.row + y * ln.scale + sy}`, li);
+        }),
+      ),
+    ),
+  );
+  const r = cell * 0.36;
+  const off: string[] = [];
+  const on: string[][] = lines.map(() => []);
+  for (let y = 0; y < rows; y++)
+    for (let x = 0; x < cols; x++) {
+      const cx = (ox + x * cell + cell / 2).toFixed(1);
+      const cy = (oy + y * cell + cell / 2).toFixed(1);
+      const li = lit.get(`${x},${y}`);
+      if (li === undefined) off.push(`<circle cx="${cx}" cy="${cy}" r="${r}"/>`);
+      else on[li].push(`<circle cx="${cx}" cy="${cy}" r="${r}"/>`);
+    }
+  const svg = (body: string, style: string) =>
+    `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;inset:0;overflow:visible;${style}">${body}</svg>`;
+  return (
+    svg(`<g fill="${MINT}" opacity="0.06">${off.join("")}</g>`, "") +
+    lines
+      .map((ln, i) =>
+        svg(
+          `<g fill="${ln.color}" opacity="${ln.opacity}">${on[i].join("")}</g>`,
+          ln.glow ? `filter:drop-shadow(0 0 ${cell * 1.2}px rgba(151,252,228,0.55))` : "",
+        ),
+      )
+      .join("")
+  );
+}
 
 function led(text: string, cell: number, color: string, glow = 0.55) {
   const chars = [...text.toUpperCase()].filter((c) => G[c]);
@@ -106,7 +161,16 @@ const SHOTS: Record<string, Shot> = {
       ["short", 7],
     ]),
     halo: 0.85,
-    overlay: (f) => `<div style="position:absolute;left:${f.x}px;top:${f.y + 26}px;transform:translateX(-50%)">${led("Copy the room", 7.6, MINT)}</div>`,
+    overlay: () => "",
+    // One whale in dim white, fifty in lit mint, on a board the size of the banner.
+    panel: () =>
+      ledPanel(1500, 500, 7, [
+        { text: "One whale can be wrong.", scale: 1, row: 19, col: 6, color: "#eaf6f2", opacity: 0.5 },
+        { text: "Fifty rarely are.", scale: 2, row: 31, col: 6, color: MINT, opacity: 1, glow: true },
+      ]) +
+      `<div style="position:absolute;right:42px;bottom:34px;display:flex;align-items:center;gap:10px;padding:8px 12px 8px 10px;background:${INK};border-radius:8px">
+        ${mark(28)}<span style="font:640 19px/1 'Mona Sans Variable';font-stretch:125%;letter-spacing:-0.02em;color:#eaf6f2">Consensus</span>
+      </div>`,
   },
   launch: {
     w: 1600,
@@ -148,6 +212,20 @@ canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
 const overlayEl = document.getElementById("overlay")!;
 overlayEl.style.cssText = "position:absolute;inset:0";
 
+if (shot.panel) {
+  canvas.style.display = "none";
+  frame.style.background = INK;
+  overlayEl.innerHTML = shot.panel();
+  document.fonts.ready.then(() =>
+    requestAnimationFrame(() => {
+      (window as unknown as { __done: boolean }).__done = true;
+    }),
+  );
+} else {
+  renderChamber();
+}
+
+function renderChamber() {
 // --- the chamber, same geometry as the site ---
 const TIERS = [
   { r: 1.62, n: 9 },
@@ -355,3 +433,4 @@ document.fonts.ready.then(() => {
     (window as unknown as { __done: boolean }).__done = true;
   });
 });
+}

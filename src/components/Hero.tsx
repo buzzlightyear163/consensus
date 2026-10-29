@@ -80,8 +80,8 @@ export function Hero({
     <section className="hero" id="top" aria-labelledby="hero-h">
       <div className="hero-top">
         <h1 id="hero-h">
-          <span className="h-dim">Don’t copy a whale.</span>
-          <span>Copy the room.</span>
+          <span className="h-dim">One whale can be wrong.</span>
+          <span>Fifty rarely are.</span>
         </h1>
         <div className="hero-side">
           <p className="lede">

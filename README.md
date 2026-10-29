@@ -1,6 +1,6 @@
 # Consensus ($CONSENSUS)
 
-"Don't copy a whale. Copy the room."
+"One whale can be wrong. Fifty rarely are."
 
 Rankar alla traders på Hyperliquid på hur jämnt de vinner, plockar ut de 50 mest konsekventa ("rummet") och läser deras öppna positioner varje minut. En coin signalerar när minst 10 av dem håller den och 70 % står på samma sida.
 
