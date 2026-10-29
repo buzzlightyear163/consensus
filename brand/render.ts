@@ -17,6 +17,8 @@ type Shot = {
   seatScale?: number;
   /** A flat LED board instead of the chamber. */
   panel?: () => string;
+  /** Runs after the panel is in the page, for canvas drawing. */
+  draw?: (root: HTMLElement) => void;
   overlay: (front: { x: number; y: number }, w: number, h: number) => string;
 };
 
@@ -132,7 +134,106 @@ function mark(size: number) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 32 32">${dots.join("")}</svg>`;
 }
 
+/**
+ * One faint dot per account on Hyperliquid's leaderboard (about 48,000), with the
+ * fifty seats lit where they fall in the crowd, in the shape of the chamber.
+ */
+function drawField(root: HTMLElement, w: number, h: number) {
+  const c = root.querySelector("canvas") as HTMLCanvasElement;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = w * dpr;
+  c.height = h * dpr;
+  c.style.cssText = `position:absolute;inset:0;width:${w}px;height:${h}px`;
+  const g = c.getContext("2d")!;
+  g.scale(dpr, dpr);
+  const cols = 293;
+  const rows = 165; // 48,345 dots
+  const sx = w / cols;
+  const sy = h / rows;
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+  // The chamber, snapped to the grid.
+  const cx = w * 0.655;
+  const cy = h * 0.79;
+  const lit = new Set<string>();
+  [
+    { r: 158, n: 9 },
+    { r: 206, n: 11 },
+    { r: 254, n: 14 },
+    { r: 302, n: 16 },
+  ].forEach(({ r, n }) => {
+    for (let j = 0; j < n; j++) {
+      const a = Math.PI - 0.05 - (j * (Math.PI - 0.1)) / (n - 1);
+      const gx = Math.round((cx + r * Math.cos(a)) / sx - 0.5);
+      const gy = Math.round((cy - r * Math.sin(a)) / sy - 0.5);
+      lit.add(`${gx},${gy}`);
+    }
+  });
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (lit.has(`${x},${y}`)) continue;
+      const px = (x + 0.5) * sx;
+      const py = (y + 0.5) * sy;
+      // Dimmer toward the edges, brighter near the room.
+      const d = Math.hypot((px - cx) / w, (py - cy + 60) / h);
+      const a = (0.13 + rnd() * 0.13) * Math.max(0.45, 1.2 - d * 1.3);
+      g.fillStyle = `rgba(151,252,228,${a.toFixed(3)})`;
+      g.beginPath();
+      g.arc(px, py, 1.25, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  // The floor line under the chamber.
+  const fy = Math.round(cy / sy - 0.5);
+  for (let x = Math.round((cx - 350) / sx); x <= Math.round((cx + 350) / sx); x++) {
+    const px = (x + 0.5) * sx;
+    const f = 1 - Math.abs(px - cx) / 350;
+    g.fillStyle = `rgba(151,252,228,${(0.12 + f * 0.3).toFixed(3)})`;
+    g.beginPath();
+    g.arc(px, (fy + 0.5) * sy, 1.15, 0, Math.PI * 2);
+    g.fill();
+  }
+  // The fifty.
+  g.shadowColor = "rgba(151,252,228,0.9)";
+  for (const key of lit) {
+    const [x, y] = key.split(",").map(Number);
+    const px = (x + 0.5) * sx;
+    const py = (y + 0.5) * sy;
+    g.shadowBlur = 22;
+    g.fillStyle = MINT;
+    g.beginPath();
+    g.arc(px, py, 4.2, 0, Math.PI * 2);
+    g.fill();
+    g.fill();
+  }
+  g.shadowBlur = 0;
+}
+
 const SHOTS: Record<string, Shot> = {
+  prelaunch: {
+    w: 1600,
+    h: 900,
+    elev: 0,
+    fov: 0,
+    fit: 0,
+    frontY: 0,
+    seats: [],
+    halo: 0,
+    overlay: () => "",
+    panel: () => `
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 55% 60% at 66% 62%, rgba(151,252,228,0.09), transparent 70%)"></div>
+      <canvas></canvas>
+      <div style="position:absolute;left:84px;top:96px;font:640 64px/0.98 'Mona Sans Variable';font-stretch:125%;letter-spacing:-0.045em">
+        <div style="color:rgba(234,246,242,0.4)">48,000+ traders<br>on Hyperliquid.</div>
+        <div style="color:#eaf6f2;margin-top:8px">Fifty seats.</div>
+      </div>
+      <div style="position:absolute;left:84px;bottom:72px;display:flex;align-items:center;gap:12px">
+        ${mark(34)}<span style="font:640 23px/1 'Mona Sans Variable';font-stretch:125%;letter-spacing:-0.02em;color:#eaf6f2">Consensus</span>
+      </div>`,
+    draw: (root) => drawField(root, 1600, 900),
+  },
   coin: {
     w: 1000,
     h: 1000,
@@ -216,6 +317,7 @@ if (shot.panel) {
   canvas.style.display = "none";
   frame.style.background = INK;
   overlayEl.innerHTML = shot.panel();
+  shot.draw?.(overlayEl);
   document.fonts.ready.then(() =>
     requestAnimationFrame(() => {
       (window as unknown as { __done: boolean }).__done = true;

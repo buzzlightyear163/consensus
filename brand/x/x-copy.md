@@ -32,7 +32,7 @@ Webbplats (fylls i vid launch): useconsensus.app
 Plats: Watching from seat 51
 
 ## Pre-launch
-1. Reveal, dag −2 kväll (fäst). Bild: consensus-coin.png
+1. Reveal, dag −2 kväll (fäst). Bild: consensus-prelaunch.png
 ```text
 Copying one whale means copying one person's luck, leverage and exit.
 

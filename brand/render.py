@@ -14,11 +14,15 @@ SHOTS = {
     "coin": ("consensus-coin.png", (1000, 1000)),
     "banner": ("consensus-x-banner.png", (1500, 500)),
     "launch": ("consensus-launch.png", (1600, 900)),
+    "prelaunch": ("consensus-prelaunch.png", (1600, 900)),
 }
 
 with sync_playwright() as p:
     browser = p.chromium.launch(args=["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"])
+    only = sys.argv[2:]
     for shot, (name, (w, h)) in SHOTS.items():
+        if only and shot not in only:
+            continue
         page = browser.new_page(viewport={"width": w, "height": h}, device_scale_factor=2)
         page.goto(f"http://localhost:{PORT}/brand/render.html?shot={shot}")
         page.wait_for_function("window.__done === true", timeout=60000)
