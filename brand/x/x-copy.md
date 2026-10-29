@@ -77,7 +77,7 @@ $CONSENSUS shows you who's in the room, where they stand on every coin, and runs
 The CA and the link will only ever be posted from this account. Anything else isn't us.
 ```
 
-## Launch (fäst). Bild: consensus-launch.png
+## Launch (fäst). Bifoga consensus-launch.mp4 (eller consensus-launch.png)
 ```text
 $CONSENSUS is live.
 

@@ -43,3 +43,5 @@ Positionerna hämtas direkt från besökarens webbläsare, så de använder bes�
 ## Bilder
 
 `brand/` innehåller coin-bilden (1000×1000, även X-profilbild), X-bannern (1500×500) och launch-bilden (1600×900). De renderas från samma 3D-kammare som sajten: kör `npm run dev` och sedan `python3 brand/render.py 5173` för att göra om dem.
+
+Launch-videon (`brand/consensus-launch.mp4`, 1920×1080, 14 s) görs med `python3 brand/video.py 5173`. Första bilden är hela launch-kortet, så X visar det innan någon trycker på play.
