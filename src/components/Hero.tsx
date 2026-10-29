@@ -96,6 +96,15 @@ export function Hero({
               Check your wallet
             </a>
           </div>
+          {CONFIG.ca && (
+            <div className="ca-chip">
+              <span className="ca-label">CA</span>
+              <code title={CONFIG.ca}>
+                {CONFIG.ca.slice(0, 6)}…{CONFIG.ca.slice(-6)}
+              </code>
+              <CopyButton text={CONFIG.ca} label="Copy" />
+            </div>
+          )}
         </div>
       </div>
 

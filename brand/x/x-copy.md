@@ -105,7 +105,7 @@ One whale can be wrong. Fifty rarely are.
 
 Svar 1:
 ```text
-CA: [CA]
+CA: DY9Nrn4Cp6Rw8QifNfbLdJHJe9KnsRJR5pmxoWv7pump
 
 This is the only contract. It's posted from this account and nowhere else.
 ```
@@ -115,7 +115,7 @@ This is the only contract. It's posted from this account and nowhere else.
 ```text
 Live on pump.fun.
 
-CA: [CA]
+CA: DY9Nrn4Cp6Rw8QifNfbLdJHJe9KnsRJR5pmxoWv7pump
 
 The 50 most consistent traders on Hyperliquid, seated in one room. Check where they stand on any coin, then decide.
 
