@@ -3,7 +3,7 @@
 export const CONFIG = {
   ticker: "CONSENSUS",
   /** pump.fun contract address. When set, the nav shows a buy link and a copy button. */
-  ca: "DY9Nrn4Cp6Rw8QifNfbLdJHJe9KnsRJR5pmxoWv7pump",
+  ca: "5cMnaN2kwk8j5aZnr7tPZTPngr3uhRdA3zUnXYsgpump",
   /** Full X profile URL, e.g. "https://x.com/yourhandle". Hidden when empty. */
   x: "",
   /**
